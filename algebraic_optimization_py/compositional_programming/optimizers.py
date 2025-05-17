@@ -1,7 +1,7 @@
 from typing import Callable, List, Tuple
 import numpy as np
 from scipy.optimize import minimize
-from algebraic_optimization.compositional_programming.objectives import PrimalObjective
+from algebraic_optimization_py.compositional_programming.objectives import PrimalObjective
 
 def solve(problem: PrimalObjective, x0: List[float], step_size: float, n_iterations: int) -> np.ndarray:
     """

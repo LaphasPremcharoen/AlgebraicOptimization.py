@@ -2,7 +2,7 @@ from typing import Callable, List, Tuple
 import numpy as np
 from scipy.optimize import minimize
 from dataclasses import dataclass
-from algebraic_optimization.compositional_programming.finset_algebras import FinSetAlgebra
+from algebraic_optimization_py.compositional_programming.finset_algebras import FinSetAlgebra
 
 @dataclass
 class PrimalObjective:

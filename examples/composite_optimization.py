@@ -134,32 +134,86 @@ print("Solution using distributed gradient descent:", solution)
 scipy_solution = solve_scipy(composite_problem, initial_guess)
 print("Solution using SciPy's optimizer:", scipy_solution)
 
-# Print the dimensions to verify
-print(f"Composite problem domain dimension: {composite_problem.domain}")
-print(f"Composite problem exposed indices: {composite_problem.exposed}")
+def print_solution_info(method_name, solution, problem):
+    """Print detailed information about the solution."""
+    print(f"\n{'='*80}")
+    print(f"{method_name} Solution:")
+    print(f"  Solution vector: {np.array_str(solution, precision=4, suppress_small=True)}")
+    # For Open objects, we can't directly access the cost function
+    # So we'll just print the solution and problem dimensions
+    print(f"  Domain dimension: {problem.domain}")
+    print(f"  Exposed indices: {problem.exposed}")
+    if hasattr(problem, 'objective') and hasattr(problem.objective, 'cost_function'):
+        print(f"  Objective value: {problem.objective.cost_function(solution):.6f}")
+    if hasattr(problem, 'gradient'):
+        try:
+            grad_norm = np.linalg.norm(problem.gradient(solution))
+            print(f"  Norm of gradient: {grad_norm:.6f}")
+        except Exception as e:
+            print(f"  Could not compute gradient norm: {e}")
 
-# Create initial guess based on the domain dimension
-initial_guess = [100.0] * composite_problem.domain
+# Print problem information
+print("\n" + "="*80)
+print("PROBLEM INFORMATION:")
+print(f"  Domain dimension: {composite_problem.domain}")
+print(f"  Exposed indices: {composite_problem.exposed}")
 
-# Solve using distributed gradient descent
-solution = solve(composite_problem, initial_guess, step_size=0.1, n_iterations=100)
-print("Solution using distributed gradient descent:", solution)
+# Set up initial guess
+initial_guess = np.ones(composite_problem.domain)  # Using ones instead of 100s for better numerical stability
+print(f"\nInitial guess: {initial_guess}")
 
-# Solve using SciPy's optimizer
-scipy_solution = solve_scipy(composite_problem, initial_guess)
-print("Solution using SciPy's optimizer:", scipy_solution)
+# Solve using distributed gradient descent with more iterations
+print("\nRunning distributed gradient descent...")
+solution_gd = solve(
+    composite_problem, 
+    initial_guess.copy(),  # Make a copy to avoid modifying the original
+    step_size=0.01,        # Smaller step size for better stability
+    n_iterations=1000      # More iterations for better convergence
+)
+print_solution_info("Distributed Gradient Descent", solution_gd, composite_problem)
 
-# Print the dimensions to verify
-print(f"Composite problem domain dimension: {composite_problem.domain}")
-print(f"Composite problem exposed indices: {composite_problem.exposed}")
+# Solve using SciPy's optimizer with more detailed output
+print("\nRunning SciPy's optimizer...")
+solution_scipy = solve_scipy(composite_problem, initial_guess.copy())
+print_solution_info("SciPy Optimizer", solution_scipy, composite_problem)
 
-# Initial guess (dimension of composite_problem's domain)
-initial_guess = [100.0] * composite_problem.domain
+# Compare the solutions
+print("\n" + "="*80)
+print("COMPARISON:")
+solution_diff = np.linalg.norm(solution_gd - solution_scipy)
+print(f"  Difference in solutions (L2 norm): {solution_diff:.6f}")
 
-# Solve using distributed gradient descent
-solution = solve(composite_problem, initial_guess, step_size=0.1, n_iterations=100)
-print("Solution using distributed gradient descent:", solution)
+# Try to compare objective values if possible
+obj_diff = None
+if hasattr(composite_problem, 'objective') and hasattr(composite_problem.objective, 'cost_function'):
+    try:
+        obj_gd = composite_problem.objective.cost_function(solution_gd)
+        obj_scipy = composite_problem.objective.cost_function(solution_scipy)
+        obj_diff = abs(obj_gd - obj_scipy)
+        print(f"  Difference in objective values: {obj_diff:.6f}")
+    except Exception as e:
+        print(f"  Could not compare objective values: {e}")
 
-# Solve using SciPy's optimizer
-scipy_solution = solve_scipy(composite_problem, initial_guess)
-print("Solution using SciPy's optimizer:", scipy_solution)
+# Check if the solutions are close (within numerical tolerance)
+tolerance = 1e-4
+if solution_diff < tolerance:
+    print("\nThe solutions are numerically equivalent (within tolerance).")
+else:
+    print("\nThe solutions are different. This could be due to:")
+    print("  1. Different optimization algorithms (gradient descent vs BFGS/L-BFGS-B)")
+    print("  2. Different convergence criteria")
+    print("  3. Multiple local minima in the optimization landscape")
+    print("  4. Numerical precision issues")
+    
+    if obj_diff is not None and obj_diff < tolerance:
+        print("\nNote: While the solution vectors differ, the objective values are "
+              "very close, suggesting multiple solutions with similar costs.")
+    elif obj_diff is not None:
+        better_solver = 'Gradient Descent' if obj_gd < obj_scipy else 'SciPy Optimizer'
+        print(f"\nThe solution with the better (lower) objective value is: {better_solver}")
+
+print("\nRecommendations:")
+print("  1. Try different initial guesses to check for multiple local minima")
+print("  2. For gradient descent, try adjusting the step size and number of iterations")
+print("  3. For SciPy's optimizer, try different methods (e.g., 'BFGS', 'L-BFGS-B', 'SLSQP')")
+print("  4. Check the gradient implementation if the solutions differ significantly")

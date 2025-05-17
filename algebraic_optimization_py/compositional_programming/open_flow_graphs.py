@@ -1,7 +1,7 @@
 from typing import List, Tuple, TypeVar, Generic, Dict, Callable
 import numpy as np
 from dataclasses import dataclass
-from algebraic_optimization.compositional_programming.finset_algebras import FinSetAlgebra
+from algebraic_optimization_py.compositional_programming.finset_algebras import FinSetAlgebra
 
 T = TypeVar('T')
 
