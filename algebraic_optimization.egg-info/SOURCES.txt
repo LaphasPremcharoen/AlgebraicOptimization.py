@@ -1,0 +1,14 @@
+LICENSE
+README.md
+setup.py
+algebraic_optimization/__init__.py
+algebraic_optimization.egg-info/PKG-INFO
+algebraic_optimization.egg-info/SOURCES.txt
+algebraic_optimization.egg-info/dependency_links.txt
+algebraic_optimization.egg-info/requires.txt
+algebraic_optimization.egg-info/top_level.txt
+algebraic_optimization/compositional_programming/__init__.py
+algebraic_optimization/compositional_programming/finset_algebras.py
+algebraic_optimization/compositional_programming/objectives.py
+algebraic_optimization/compositional_programming/open_flow_graphs.py
+algebraic_optimization/compositional_programming/optimizers.py
