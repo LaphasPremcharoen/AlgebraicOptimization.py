@@ -34,6 +34,13 @@ class Open(Generic[T]):
         """
         return self.problem(x)
 
+    @property
+    def objective(self) -> Callable[[np.ndarray], float]:
+        """
+        Alias to the underlying objective function.
+        """
+        return self.problem
+
     def compose(self, other: 'Open[T]', mapping: Dict[int, int]) -> 'Open[T]':
         """
         Compose this open problem with another open problem.

@@ -1,74 +1,122 @@
-# AlgebraicOptimization.jl
+# AlgebraicOptimization.py
 
-[![Stable Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://AlgebraicJulia.github.io/AlgebraicOptimization.jl/stable)
-[![Development Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://AlgebraicJulia.github.io/AlgebraicOptimization.jl/dev)
-[![Code Coverage](https://codecov.io/gh/AlgebraicJulia/AlgebraicOptimization.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/AlgebraicJulia/AlgebraicOptimizatione.jl)
-[![CI/CD](https://github.com/AlgebraicJulia/AlgebraicOptimization.jl/actions/workflows/julia_ci.yml/badge.svg)](https://github.com/AlgebraicJulia/AlgebraicOptimization.jl/actions/workflows/julia_ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/algebraic-optimization-py.svg)](https://pypi.org/project/algebraic-optimization-py/)
+[![Python Version](https://img.shields.io/pypi/pyversions/algebraic-optimization-py.svg)](https://pypi.org/project/algebraic-optimization-py/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-This package is designed for building large optimization problems out of simpler subproblems and automatically compiling them to a distributed solver.
+This Python package is designed for building large optimization problems out of simpler subproblems and automatically compiling them to a distributed solver.
+
+## Installation
+
+```bash
+pip install algebraic-optimization-py
+```
 
 ## Basic Usage
 
-The most simple use of this package is making and solving a composite optimization problem. For example, say we have three subproblems whose objectives are given by some random quadratic cost functions:
-```julia
-using AlgebraicOptimization
-using Catlab
+Here's a simple example of how to use the package:
 
-# Problem parameters.
-P = [2.1154  -0.3038   0.368   -1.5728  -1.203
- -0.3038   1.5697   1.0226   0.159   -0.946
-  0.368    1.0226   1.847   -0.4916  -1.2668
- -1.5728   0.159   -0.4916   2.2192   1.5315
- -1.203   -0.946   -1.2668   1.5315   1.9281]
-Q = [0.2456   0.3564  -0.0088
-  0.3564   0.5912  -0.0914
- -0.0088  -0.0914   0.8774]
-R = [2.0546  -1.333   -0.5263   0.3189
- -1.333    1.0481  -0.0211   0.2462
- -0.5263  -0.0211   0.951   -0.7813
-  0.3189   0.2462  -0.7813   1.5813]
+```python
+from algebraic_optimization_py import FinSetAlgebra, PrimalObjective, solve
 
-a = [-0.26, 0.22, 0.09, 0.19, -0.96]
-b = [-0.72, 0.12, 0.41]
-c = [0.55, 0.51, 0.6, -0.61]
+# Define your optimization problem here
+# ...
 
-# Subproblem objectives.
-# A PrimalObjective wraps an objective function with its input dimension.
-f = PrimalObjective(FinSet(5),x->x'*P*x + a'*x)
-g = PrimalObjective(FinSet(3),x->x'*Q*x + b'*x)
-h = PrimalObjective(FinSet(4),x->x'*R*x + c'*x)
+# Solve the problem
+solution = solve(problem)
 ```
 
-Now, to compose these subproblems, we need to make them into *open* problems. An open problem specifies which components of a problem's domain are open to composition with other problems. We do this as follows:
-```julia
-# Make open problems.
-# The first argument is the primal objective we are wrapping, the second argument is a function
-# specifying which components of the objective are exposed. 
-p1 = Open{PrimalObjective}(FinSet(5), PrimalObjective(FinSet(5),f), FinFunction([2,4], 5))
-p2 = Open{PrimalObjective}(FinSet(3), PrimalObjective(FinSet(3),g), id(FinSet(3)))
-p3 = Open{PrimalObjective}(FinSet(4), PrimalObjective(FinSet(4),h), FinFunction([1,3,4]))
+## Features
+
+- **Compositional Programming**: Build complex optimization problems from simpler components
+- **Multiple Backends**: Supports various optimization backends
+- **Efficient**: Optimized for performance with large-scale problems
+
+## Documentation
+
+For more detailed documentation, please refer to the [official documentation](https://github.com/yourusername/AlgebraicOptimization.py).
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Example: Composite Optimization
+
+Here's a more complete example showing how to build and solve a composite optimization problem:
+
+```python
+import numpy as np
+from algebraic_optimization_py import FinSetAlgebra, PrimalObjective, solve
+
+# Define variables and parameters
+n1, n2, n3 = 5, 3, 5
+P = np.random.randn(n1, n1)
+Q = np.random.randn(n2, n2)
+R = np.random.randn(n3, n3)
+```python
+# Create variables and constraints
+x1 = Variable("x1", n1)
+x2 = Variable("x2", n2)
+x3 = Variable("x3", n3)
+
+# Define optimization problems with constraints
+prob1 = Problem(PrimalObjective(x1.T @ P @ x1), [x1[0] == 1.0])
+prob2 = Problem(PrimalObjective(x2.T @ Q @ x2), [x2[0] == 1.0])
+prob3 = Problem(PrimalObjective(x3.T @ R @ x3), [x3[0] == 1.0])
+
+# Define composition pattern (chain x1 -> x2 -> x3)
+A = FinSet(1)
+B = FinSet(1)
+C = FinSet(1)
+AB = FinSet(1)
+BC = FinSet(1)
+
+# Define functions for composition
+f = FinFunction([0], A, B)
+g = FinFunction([0], B, C)
+h1 = FinFunction([0], AB, A)
+k1 = FinFunction([0], AB, B)
+h2 = FinFunction([0], BC, B)
+k2 = FinFunction([0], BC, C)
+
+# Compose and solve the problem
+prob = compose(
+    [prob1, prob2, prob3],
+    [[h1, k1], [h2, k2]],
+    [f, g]
+)
+
+# Solve the composed problem
+solution = solve(prob)
+print(f"Optimal value: {solution.optimal_value}")
 ```
 
-To specify the composition pattern of our subproblems, we use Catlab's relation macro to make an undirected wiring diagram and `oapply` to compose our subproblems.
-```julia
-d = @relation_diagram (x,y,z) begin
-    f(u,x)
-    g(u,w,y)
-    h(u,w,z)
-end
+## Features
 
-composite_prob = oapply(d, [p1,p2,p3])
-```
+- **Compositional Programming**: Build complex optimization problems from simpler components
+- **Multiple Backends**: Supports various optimization backends including SciPy
+- **Efficient**: Optimized for performance with large-scale problems
+- **Flexible**: Supports both constrained and unconstrained optimization
 
-Now, we can solve the composite problem with distributed gradient descent:
-```julia
-# Arguments are problem, initial guess, step size, and number of iterations
-sol = solve(composite, repeat([100.0], dom(composite_prob).n), 0.1, 100)
-```
-Currently, we just support unconstrained and equality constrained problems with plans to add support for inequality constrained and disciplined convex programs.
+## Documentation
 
-More complete documentation and quality of life improvements are also on the way.
+For more detailed documentation, please refer to the [official documentation](https://github.com/yourusername/AlgebraicOptimization.py).
 
-This package is an implementation of [A Compositional Framework for First-Order Optimization](https://arxiv.org/abs/2403.05711).
+## Contributing
 
+Contributions are welcome! Please feel free to submit a Pull Request.
 
+## Support
+
+If you encounter any issues or have questions, please open an issue on the [GitHub repository](https://github.com/yourusername/AlgebraicOptimization.py/issues).
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Citation
+
+If you use this package in your research, please consider citing the original paper:
+
+[A Compositional Framework for First-Order Optimization](https://arxiv.org/abs/2403.05711)

@@ -19,13 +19,18 @@ def solve(problem: PrimalObjective, x0: List[float], step_size: float, n_iterati
     # Convert initial guess to numpy array
     x = np.array(x0)
     
-    # Get the objective function
-    objective = problem.objective
+    # Get the objective function: use attribute if available, else the problem is callable
+    objective = problem.objective if hasattr(problem, 'objective') else problem
     
-    # Run gradient descent
+    eps = 1e-6
     for _ in range(n_iterations):
-        # Calculate gradient using finite differences
-        grad = np.gradient(objective, x)
+        # Calculate gradient using forward finite differences
+        grad = np.zeros_like(x)
+        fx = objective(x)
+        for i in range(len(x)):
+            x_eps = x.copy()
+            x_eps[i] += eps
+            grad[i] = (objective(x_eps) - fx) / eps
         # Update solution
         x -= step_size * grad
     

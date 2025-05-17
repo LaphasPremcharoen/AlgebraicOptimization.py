@@ -1,10 +1,7 @@
 import numpy as np
-from algebraic_optimization import (
-    PrimalObjective,
-    Open,
-    solve,
-    solve_scipy
-)
+from algebraic_optimization_py.compositional_programming.objectives import PrimalObjective
+from algebraic_optimization_py.compositional_programming.open_flow_graphs import Open
+from algebraic_optimization_py.compositional_programming.optimizers import solve, solve_scipy
 
 # Problem parameters
 P = np.array([
