@@ -1,115 +1,82 @@
-# AlgebraicOptimization.py
+# Algebraic Optimization
 
-[![PyPI version](https://img.shields.io/pypi/v/algebraic-optimization-py.svg)](https://pypi.org/project/algebraic-optimization-py/)
-[![Python Version](https://img.shields.io/pypi/pyversions/algebraic-optimization-py.svg)](https://pypi.org/project/algebraic-optimization-py/)
+[![Python Version](https://img.shields.io/pypi/pyversions/algebraic-optimization.svg)](https://pypi.org/project/algebraic-optimization/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-This Python package is designed for building large optimization problems out of simpler subproblems and automatically compiling them to a distributed solver.
+A Python implementation of the algebraic optimization framework described in the paper 
+"A Compositional Framework for First-Order Optimization" (2403.05711). This package provides tools for 
+building and solving optimization problems using compositional programming techniques.
+
+## Features
+
+- **Compositional Programming**: Build complex optimization problems by composing simpler subproblems
+- **Efficient Implementations**: Optimized for performance with large-scale problems
+- **Flexible Backends**: Supports multiple optimization backends
 
 ## Installation
 
 ```bash
-pip install algebraic-optimization-py
+pip install algebraic-optimization
 ```
 
-## Basic Usage
+## Quick Start
 
-Here's a simple example of how to use the package:
-
-```python
-from algebraic_optimization_py import FinSetAlgebra, PrimalObjective, solve
-
-# Define your optimization problem here
-# ...
-
-# Solve the problem
-solution = solve(problem)
-```
-
-## Features
-
-- **Compositional Programming**: Build complex optimization problems from simpler components
-- **Multiple Backends**: Supports various optimization backends
-- **Efficient**: Optimized for performance with large-scale problems
-
-## Documentation
-
-For more detailed documentation, please refer to the [official documentation](https://github.com/yourusername/AlgebraicOptimization.py).
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Example: Composite Optimization
-
-Here's a more complete example showing how to build and solve a composite optimization problem:
+### Basic Usage
 
 ```python
 import numpy as np
-from algebraic_optimization_py import FinSetAlgebra, PrimalObjective, solve
+from algebraic_optimization import PrimalObjective, solve
 
-# Define variables and parameters
-n1, n2, n3 = 5, 3, 5
-P = np.random.randn(n1, n1)
-Q = np.random.randn(n2, n2)
-R = np.random.randn(n3, n3)
-```python
-# Create variables and constraints
-x1 = Variable("x1", n1)
-x2 = Variable("x2", n2)
-x3 = Variable("x3", n3)
+# Define a simple quadratic objective
+P = np.array([[2, 1], [1, 2]])
+f = PrimalObjective(2, lambda x: x.T @ P @ x, grad=lambda x: 2 * P @ x)
 
-# Define optimization problems with constraints
-prob1 = Problem(PrimalObjective(x1.T @ P @ x1), [x1[0] == 1.0])
-prob2 = Problem(PrimalObjective(x2.T @ Q @ x2), [x2[0] == 1.0])
-prob3 = Problem(PrimalObjective(x3.T @ R @ x3), [x3[0] == 1.0])
-
-# Define composition pattern (chain x1 -> x2 -> x3)
-A = FinSet(1)
-B = FinSet(1)
-C = FinSet(1)
-AB = FinSet(1)
-BC = FinSet(1)
-
-# Define functions for composition
-f = FinFunction([0], A, B)
-g = FinFunction([0], B, C)
-h1 = FinFunction([0], AB, A)
-k1 = FinFunction([0], AB, B)
-h2 = FinFunction([0], BC, B)
-k2 = FinFunction([0], BC, C)
-
-# Compose and solve the problem
-prob = compose(
-    [prob1, prob2, prob3],
-    [[h1, k1], [h2, k2]],
-    [f, g]
-)
-
-# Solve the composed problem
-solution = solve(prob)
+# Solve the optimization problem
+solution = solve(f)
 print(f"Optimal value: {solution.optimal_value}")
+print(f"Optimal point: {solution.optimal_point}")
 ```
 
-## Features
+### Compositional Programming
 
-- **Compositional Programming**: Build complex optimization problems from simpler components
-- **Multiple Backends**: Supports various optimization backends including SciPy
-- **Efficient**: Optimized for performance with large-scale problems
-- **Flexible**: Supports both constrained and unconstrained optimization
+```python
+from algebraic_optimization import FinSetAlgebra, Open, MinObj
+
+# Define a simple flow network
+with FinSetAlgebra() as fsa:
+    # Define nodes and edges
+    v1, v2, v3, v4 = fsa.add_nodes(4)
+    e1 = fsa.add_edge(v1, v2)
+    e2 = fsa.add_edge(v2, v3)
+    e3 = fsa.add_edge(v3, v4)
+    
+    # Define optimization problem
+    problem = MinObj(e1 + e2 + e3)
+    
+    # Add constraints
+    problem.constrain(Open(v1), 1)  # Source
+    problem.constrain(Open(v4), -1)  # Sink
+    
+    # Solve
+    solution = solve(problem)
+    print(f"Minimum cost flow: {solution.optimal_value}")
+```
 
 ## Documentation
 
-For more detailed documentation, please refer to the [official documentation](https://github.com/yourusername/AlgebraicOptimization.py).
+For detailed documentation, including API reference and examples, please see the [documentation](https://laphaspremcharoen.github.io/AlgebraicOptimization.py/).
+
+## Examples
+
+Check out the `examples/` directory for more comprehensive examples, including:
+- Network flow optimization
+- Distributed consensus problems
+- Model predictive control
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Support
-
-If you encounter any issues or have questions, please open an issue on the [GitHub repository](https://github.com/yourusername/AlgebraicOptimization.py/issues).
+Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) for details on how to submit pull requests, report issues, or suggest improvements.
 
 ## License
 
@@ -117,6 +84,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Citation
 
-If you use this package in your research, please consider citing the original paper:
+If you use this software in your research, please cite the original paper:
 
-[A Compositional Framework for First-Order Optimization](https://arxiv.org/abs/2403.05711)
+```
+@article{algebraic_optimization_2024,
+  title={A Compositional Framework for First-Order Optimization},
+  author={Author(s)},
+  journal={arXiv:2403.05711},
+  year={2024},
+  url={https://arxiv.org/abs/2403.05711}
+}

@@ -28,38 +28,64 @@ class Open(Generic[T]):
             matrix[i, idx] = 1
         return matrix
 
+    def __call__(self, x: np.ndarray) -> float:
+        """
+        Evaluate the composed problem by calling the underlying objective function.
+        """
+        return self.problem(x)
+
+    @property
+    def objective(self) -> Callable[[np.ndarray], float]:
+        """
+        Alias to the underlying objective function.
+        """
+        return self.problem
+
     def compose(self, other: 'Open[T]', mapping: Dict[int, int]) -> 'Open[T]':
         """
         Compose this open problem with another open problem.
         
         Args:
             other: The other open problem to compose with
-            mapping: A dictionary mapping exposed indices of this problem
-                     to exposed indices of the other problem
+            mapping: A dictionary mapping variable indices of this problem
+                     to variable indices of the other problem
         """
-        # Validate mapping
-        if not all(idx in self.exposed for idx in mapping.keys()):
-            raise ValueError("Mapping contains indices not in exposed")
-        if not all(idx in other.exposed for idx in mapping.values()):
-            raise ValueError("Mapping contains indices not in other's exposed")
+        # Determine variable groups: self-only, shared, other-only
+        self_only = [i for i in range(self.domain) if i not in mapping]
+        shared = list(mapping.keys())
+        other_only = [j for j in range(other.domain) if j not in mapping.values()]
 
-        # Create new domain dimension
-        new_domain = self.domain + other.domain - len(mapping)
-        
-        # Create new exposed indices
-        new_exposed = list(set(range(new_domain)) - set(mapping.keys()))
-        
-        # Create new problem
+        # Build new domain ordering: self-only, shared, other-only
+        new_domain = len(self_only) + len(shared) + len(other_only)
+
         def new_objective(x):
-            # Split input into parts for each problem
-            x_self = x[:self.domain]
-            x_other = x[self.domain:new_domain]
-            
-            # Apply mapping to connect problems
-            for src, dst in mapping.items():
-                x_other[dst] = x_self[src]
-            
-            # Evaluate both problems
-            return self.problem(x_self) + other.problem(x_other)
-        
+            # Assemble full vectors for each problem
+            full_self = np.zeros(self.domain)
+            full_other = np.zeros(other.domain)
+            # Assign self-only
+            for idx, var in enumerate(self_only):
+                full_self[var] = x[idx]
+            # Assign shared
+            for idx, var in enumerate(shared):
+                val = x[len(self_only) + idx]
+                full_self[var] = val
+                full_other[mapping[var]] = val
+            # Assign other-only
+            base = len(self_only) + len(shared)
+            for idx, var in enumerate(other_only):
+                full_other[var] = x[base + idx]
+            return self.problem(full_self) + other.problem(full_other)
+
+        # Compute new exposed indices based on original exposed variables
+        new_exposed = []
+        # Expose self's variables that were originally exposed and not mapped
+        for var in self.exposed:
+            if var not in mapping:
+                new_exposed.append(self_only.index(var))
+        # Expose other's variables that were originally exposed and not mapped
+        base = len(self_only) + len(shared)
+        for var in other.exposed:
+            if var not in mapping.values():
+                new_exposed.append(base + other_only.index(var))
+
         return Open(new_domain, new_objective, new_exposed)

@@ -1,219 +1,160 @@
+"""
+Composite Optimization Example
+==============================
+
+This script demonstrates how to use the Algebraic Optimization package to solve
+a composite optimization problem by breaking it down into smaller subproblems.
+
+This version implements a linear chain: f(x,u) composed with g(u,v), 
+then the result composed with h(v,w).
+"""
+
 import numpy as np
-from algebraic_optimization_py.compositional_programming.objectives import PrimalObjective
-from algebraic_optimization_py.compositional_programming.open_flow_graphs import Open
-from algebraic_optimization_py.compositional_programming.optimizers import solve, solve_scipy
+from algebraic_optimization.compositional_programming.open_flow_graphs import Open
+from algebraic_optimization.compositional_programming.optimizers import OptimizerPy, euler_method, simulate, ContinuousOptPy
 
-# Problem parameters
-P = np.array([
-    [2.1154, -0.3038, 0.368, -1.5728, -1.203],
-    [-0.3038, 1.5697, 1.0226, 0.159, -0.946],
-    [0.368, 1.0226, 1.847, -0.4916, -1.2668],
-    [-1.5728, 0.159, -0.4916, 2.2192, 1.5315],
-    [-1.203, -0.946, -1.2668, 1.5315, 1.9281]
-])
+# For debugging the import issue with open_flow_graphs
+import algebraic_optimization.compositional_programming.open_flow_graphs as ofg_module
+print(f"DEBUG: open_flow_graphs.py loaded from: {ofg_module.__file__}")
 
-Q = np.array([
-    [0.2456, 0.3564, -0.0088],
-    [0.3564, 0.5912, -0.0914],
-    [-0.0088, -0.0914, 0.8774]
-])
+# Global Problem Parameters are no longer used for this simplified example setup
+# Users can define their own P, Q, R, a, b, c if they adapt the setup
 
-R = np.array([
-    [2.0546, -1.333, -0.5263, 0.3189],
-    [-1.333, 1.0481, -0.0211, 0.2462],
-    [-0.5263, -0.0211, 0.951, -0.7813],
-    [0.3189, 0.2462, -0.7813, 1.5813]
-])
+# =============================================================================
+# Helper Functions
+# =============================================================================
 
-a = np.array([-0.26, 0.22, 0.09, 0.19, -0.96])
-b = np.array([-0.72, 0.12, 0.41])
-c = np.array([0.55, 0.51, 0.6, -0.61])
+def quadratic_gradient_dynamics(P_mat, a_vec):
+    """Create a function for negative gradient dynamics of a quadratic cost.
+    Cost: C(x) = 0.5 * x.T @ P_mat @ x + a_vec.T @ x (if P_mat is symmetric)
+    More generally, if Cost: C(x) = x.T @ P_any @ x + a_vec.T @ x
+    Gradient: grad C(x) = (P_any + P_any.T) @ x + a_vec
+    Dynamics: dx/dt = -grad C(x)
+    """
+    P_plus_PT = P_mat + P_mat.T
+    def dynamics(x: np.ndarray) -> np.ndarray:
+        return -(P_plus_PT @ x + a_vec)
+    return dynamics
 
-def quadratic_cost(P, a):
-    """Create a quadratic cost function."""
-    def cost(x):
-        return x.T @ P @ x + a.T @ x
-    return cost
 
-# Create subproblem objectives
-f = PrimalObjective(5, quadratic_cost(P, a))
-g = PrimalObjective(3, quadratic_cost(Q, b))
-h = PrimalObjective(4, quadratic_cost(R, c))
+# =============================================================================
+# Problem Setup for f(x,u) - g(u,v) - h(v,w)
+# =============================================================================
 
-# Create open problems
-p1 = Open(5, f, [1, 3])  # Expose components 1 and 3
-p2 = Open(3, g, [0, 1, 2])  # Expose all components
-p3 = Open(4, h, [0, 2, 3])  # Expose components 0, 2, and 3
+def setup_optimization_problem():
+    """Set up the optimization problem for a linear chain f(x,u)-g(u,v)-h(v,w)."""
+    
+    # Define simple quadratic costs for 2D problems:
+    # Cost_f(x0, x1) = (x0-c0)^2 + (x1-c1)^2. Dynamics params: P=2*I, a=-2*C
+    # Let f(x,u): cost (x-1)^2 + (u-2)^2. Vars [x,u]. P_f = 2*np.eye(2), a_f = np.array([-2, -4])
+    # Let g(u,v): cost (u-3)^2 + (v-4)^2. Vars [u,v]. P_g = 2*np.eye(2), a_g = np.array([-6, -8])
+    # Let h(v,w): cost (v-5)^2 + (w-6)^2. Vars [v,w]. P_h = 2*np.eye(2), a_h = np.array([-10, -12])
 
-# Compose the problems according to the diagram:
-# f(u,x)
-# g(u,w,y)
-# h(u,w,z)
-# First compose p1 and p2 (f and g) through u
-composite1 = p1.compose(p2, {1: 0, 3: 1})  # Connect u components
+    P_mat = 2 * np.eye(2) # P_mat for dynamics is P_orig + P_orig.T. If P_orig=I, then P_mat=2I
+                          # If cost is (x-c)^2 = x^2 - 2cx + c^2, P_orig_ii = 1, a_orig_i = -2c_i
+                          # So (P_orig + P_orig.T)_ii = 2. a_vec = [-2c_0, -2c_1]
 
-# Then compose the result with p3 through w
-# The exposed indices from composite1 are [0, 2, 4, 5]
-# We need to map these to the exposed indices of p3 [0, 2, 3]
-# Map the first exposed index of composite1 (index 0) to the first exposed index of p3 (index 0)
-# Map the third exposed index of composite1 (index 4) to the second exposed index of p3 (index 2)
-composite_problem = composite1.compose(p3, {0: 0, 4: 2})  # Connect w components
+    dyn_f = quadratic_gradient_dynamics(P_mat, np.array([-2*1, -2*2])) # for (x-1)^2, (u-2)^2
+    dyn_g = quadratic_gradient_dynamics(P_mat, np.array([-2*3, -2*4])) # for (u-3)^2, (v-4)^2
+    dyn_h = quadratic_gradient_dynamics(P_mat, np.array([-2*5, -2*6])) # for (v-5)^2, (w-6)^2
 
-# Print the dimensions to verify
-print(f"Composite problem domain dimension: {composite_problem.domain}")
-print(f"Composite problem exposed indices: {composite_problem.exposed}")
+    opt_f = OptimizerPy(state_space_dim=2, dynamics=dyn_f)
+    opt_g = OptimizerPy(state_space_dim=2, dynamics=dyn_g)
+    opt_h = OptimizerPy(state_space_dim=2, dynamics=dyn_h)
 
-# Create initial guess based on the domain dimension
-initial_guess = [100.0] * composite_problem.domain
+    # For f(var0, var1), problem vars are [var0, var1]
+    # p1 for f(x,u): domain vars [x,u]. Exposed list specifies order for mapping.
+    #   Let domain be [x, u]. p1.exposed = [u_idx=1, x_idx=0]. So p1.exposed[0] is u.
+    p1 = Open(domain=2, problem=opt_f, exposed=[1, 0]) 
+    # p2 for g(u,v): domain vars [u,v].
+    #   Let domain be [u, v]. p2.exposed = [u_idx=0, v_idx=1]. So p2.exposed[0] is u.
+    p2 = Open(domain=2, problem=opt_g, exposed=[0, 1]) 
+    # p3 for h(v,w): domain vars [v,w].
+    #   Let domain be [v, w]. p3.exposed = [v_idx=0, w_idx=1]. So p3.exposed[0] is v.
+    p3 = Open(domain=2, problem=opt_h, exposed=[0, 1]) 
+    
+    continuous_algebra = ContinuousOptPy()
 
-# Solve using distributed gradient descent
-solution = solve(composite_problem, initial_guess, step_size=0.1, n_iterations=100)
-print("Solution using distributed gradient descent:", solution)
+    # Step 1: Compose p1 and p2, identifying p1's u with p2's u.
+    # p1.exposed[0] (u from p1) maps to p2.exposed[0] (u from p2).
+    # Mapping: {index_in_p1.exposed : index_in_p2.exposed}
+    map_p1_p2 = {0: 0}
+    print(f"Composing p1 and p2 with mapping: {map_p1_p2}")
+    print(f"  p1.exposed: {p1.exposed}, p2.exposed: {p2.exposed}")
+    composite_fg = p1.compose(p2, map_p1_p2, algebra=continuous_algebra)
+    # composite_fg.exposed should be [x_from_p1, v_from_p2]. Domain size 3 (x, u_internal, v).
+    print(f"  composite_fg created. Domain: {composite_fg.domain}, Exposed: {composite_fg.exposed}")
 
-# Solve using SciPy's optimizer
-scipy_solution = solve_scipy(composite_problem, initial_guess)
-print("Solution using SciPy's optimizer:", scipy_solution)
+    # Step 2: Compose composite_fg with p3, identifying v from composite_fg with v from p3.
+    # composite_fg.exposed[1] (v_from_p2) maps to p3.exposed[0] (v from p3).
+    map_fg_p3 = {1: 0} 
+    print(f"Composing composite_fg and p3 with mapping: {map_fg_p3}")
+    print(f"  composite_fg.exposed: {composite_fg.exposed}, p3.exposed: {p3.exposed}")
+    composite_problem = composite_fg.compose(p3, map_fg_p3, algebra=continuous_algebra)
+    # composite_problem.exposed should be [x_from_p1, w_from_p3]. Domain size 4 (x, u_int, v_int, w).
+    print(f"  Final composite_problem created. Domain: {composite_problem.domain}, Exposed: {composite_problem.exposed}")
+    
+    return composite_problem
 
-# Print the dimensions to verify
-print(f"Composite problem domain dimension: {composite_problem.domain}")
-print(f"Composite problem exposed indices: {composite_problem.exposed}")
 
-# Create initial guess based on the domain dimension
-initial_guess = [100.0] * composite_problem.domain
+# =============================================================================
+# Solution Analysis
+# =============================================================================
 
-# Solve using distributed gradient descent
-solution = solve(composite_problem, initial_guess, step_size=0.1, n_iterations=100)
-print("Solution using distributed gradient descent:", solution)
-
-# Solve using SciPy's optimizer
-scipy_solution = solve_scipy(composite_problem, initial_guess)
-print("Solution using SciPy's optimizer:", scipy_solution)
-
-# Print the dimensions to verify
-print(f"Composite problem domain dimension: {composite_problem.domain}")
-print(f"Composite problem exposed indices: {composite_problem.exposed}")
-
-# Create initial guess based on the domain dimension
-initial_guess = [100.0] * composite_problem.domain
-
-# Solve using distributed gradient descent
-solution = solve(composite_problem, initial_guess, step_size=0.1, n_iterations=100)
-print("Solution using distributed gradient descent:", solution)
-
-# Solve using SciPy's optimizer
-scipy_solution = solve_scipy(composite_problem, initial_guess)
-print("Solution using SciPy's optimizer:", scipy_solution)
-
-# Print the dimensions to verify
-print(f"Composite problem domain dimension: {composite_problem.domain}")
-print(f"Composite problem exposed indices: {composite_problem.exposed}")
-
-# Create initial guess based on the domain dimension
-initial_guess = [100.0] * composite_problem.domain
-
-# Solve using distributed gradient descent
-solution = solve(composite_problem, initial_guess, step_size=0.1, n_iterations=100)
-print("Solution using distributed gradient descent:", solution)
-
-# Solve using SciPy's optimizer
-scipy_solution = solve_scipy(composite_problem, initial_guess)
-print("Solution using SciPy's optimizer:", scipy_solution)
-
-# Print the dimensions to verify
-print(f"Composite problem domain dimension: {composite_problem.domain}")
-print(f"Composite problem exposed indices: {composite_problem.exposed}")
-
-# Create initial guess based on the domain dimension
-initial_guess = [100.0] * composite_problem.domain
-
-# Solve using distributed gradient descent
-solution = solve(composite_problem, initial_guess, step_size=0.1, n_iterations=100)
-print("Solution using distributed gradient descent:", solution)
-
-# Solve using SciPy's optimizer
-scipy_solution = solve_scipy(composite_problem, initial_guess)
-print("Solution using SciPy's optimizer:", scipy_solution)
-
-def print_solution_info(method_name, solution, problem):
+def print_solution_info(method_name, solution, open_problem: Open[OptimizerPy]):
     """Print detailed information about the solution."""
     print(f"\n{'='*80}")
-    print(f"{method_name} Solution:")
-    print(f"  Solution vector: {np.array_str(solution, precision=4, suppress_small=True)}")
-    # For Open objects, we can't directly access the cost function
-    # So we'll just print the solution and problem dimensions
-    print(f"  Domain dimension: {problem.domain}")
-    print(f"  Exposed indices: {problem.exposed}")
-    if hasattr(problem, 'objective') and hasattr(problem.objective, 'cost_function'):
-        print(f"  Objective value: {problem.objective.cost_function(solution):.6f}")
-    if hasattr(problem, 'gradient'):
-        try:
-            grad_norm = np.linalg.norm(problem.gradient(solution))
-            print(f"  Norm of gradient: {grad_norm:.6f}")
-        except Exception as e:
-            print(f"  Could not compute gradient norm: {e}")
+    print(f"{method_name.upper()} SOLUTION")
+    print(f"{'='*80}")
+    # Ensure solution is a numpy array for printing
+    solution_array = np.array(solution)
+    print(f"  Solution vector (final state): \n{np.array_str(solution_array, precision=4, suppress_small=True)}")
+    print(f"  Domain dimension of final problem: {open_problem.domain}") 
+    print(f"  Exposed indices of final problem: {open_problem.exposed}")
+    # Note: open_problem.problem.state_space_dim should be same as open_problem.domain
 
-# Print problem information
-print("\n" + "="*80)
-print("PROBLEM INFORMATION:")
-print(f"  Domain dimension: {composite_problem.domain}")
-print(f"  Exposed indices: {composite_problem.exposed}")
+# =============================================================================
+# Main Execution
+# =============================================================================
 
-# Set up initial guess
-initial_guess = np.ones(composite_problem.domain)  # Using ones instead of 100s for better numerical stability
-print(f"\nInitial guess: {initial_guess}")
-
-# Solve using distributed gradient descent with more iterations
-print("\nRunning distributed gradient descent...")
-solution_gd = solve(
-    composite_problem, 
-    initial_guess.copy(),  # Make a copy to avoid modifying the original
-    step_size=0.01,        # Smaller step size for better stability
-    n_iterations=1000      # More iterations for better convergence
-)
-print_solution_info("Distributed Gradient Descent", solution_gd, composite_problem)
-
-# Solve using SciPy's optimizer with more detailed output
-print("\nRunning SciPy's optimizer...")
-solution_scipy = solve_scipy(composite_problem, initial_guess.copy())
-print_solution_info("SciPy Optimizer", solution_scipy, composite_problem)
-
-# Compare the solutions
-print("\n" + "="*80)
-print("COMPARISON:")
-solution_diff = np.linalg.norm(solution_gd - solution_scipy)
-print(f"  Difference in solutions (L2 norm): {solution_diff:.6f}")
-
-# Try to compare objective values if possible
-obj_diff = None
-if hasattr(composite_problem, 'objective') and hasattr(composite_problem.objective, 'cost_function'):
-    try:
-        obj_gd = composite_problem.objective.cost_function(solution_gd)
-        obj_scipy = composite_problem.objective.cost_function(solution_scipy)
-        obj_diff = abs(obj_gd - obj_scipy)
-        print(f"  Difference in objective values: {obj_diff:.6f}")
-    except Exception as e:
-        print(f"  Could not compare objective values: {e}")
-
-# Check if the solutions are close (within numerical tolerance)
-tolerance = 1e-4
-if solution_diff < tolerance:
-    print("\nThe solutions are numerically equivalent (within tolerance).")
-else:
-    print("\nThe solutions are different. This could be due to:")
-    print("  1. Different optimization algorithms (gradient descent vs BFGS/L-BFGS-B)")
-    print("  2. Different convergence criteria")
-    print("  3. Multiple local minima in the optimization landscape")
-    print("  4. Numerical precision issues")
+def main():
+    """Main function to run the optimization example."""
+    print("\n" + "="*80)
+    print("COMPOSITE OPTIMIZATION EXAMPLE - REFACTORED FOR OPTIMIZERPY (Linear Chain)")
+    print("="*80)
     
-    if obj_diff is not None and obj_diff < tolerance:
-        print("\nNote: While the solution vectors differ, the objective values are "
-              "very close, suggesting multiple solutions with similar costs.")
-    elif obj_diff is not None:
-        better_solver = 'Gradient Descent' if obj_gd < obj_scipy else 'SciPy Optimizer'
-        print(f"\nThe solution with the better (lower) objective value is: {better_solver}")
+    print("\nSetting up the optimization problem f(x,u)-g(u,v)-h(v,w)...")
+    continuous_open_problem = setup_optimization_problem()
+    
+    print("\n" + "="*80)
+    print("CONTINUOUS COMPOSED PROBLEM INFORMATION")
+    print("="*80)
+    print(f"  Domain dimension: {continuous_open_problem.domain}")
+    print(f"  Exposed indices: {continuous_open_problem.exposed}")
+    if hasattr(continuous_open_problem.problem, 'state_space_dim'):
+        print(f"  Underlying OptimizerPy state_space_dim: {continuous_open_problem.problem.state_space_dim}")
+    
+    # Initial guess for the domain of the final composed problem.
+    # Expected domain is 4 for x, u_internal, v_internal, w.
+    initial_guess = np.ones(continuous_open_problem.domain)
+    print(f"\nInitial guess for simulation (domain {continuous_open_problem.domain}): {initial_guess}")
+    
+    gamma = 0.01
+    discrete_open_problem = euler_method(continuous_open_problem, gamma)
+    print(f"\nDiscretized problem using Euler method with gamma={gamma}")
 
-print("\nRecommendations:")
-print("  1. Try different initial guesses to check for multiple local minima")
-print("  2. For gradient descent, try adjusting the step size and number of iterations")
-print("  3. For SciPy's optimizer, try different methods (e.g., 'BFGS', 'L-BFGS-B', 'SLSQP')")
-print("  4. Check the gradient implementation if the solutions differ significantly")
+    t_steps = 1000 
+    print("\n" + "="*80)
+    print(f"RUNNING SIMULATION FOR {t_steps} STEPS")
+    print("="*80)
+    
+    solution_simulated = simulate(
+        discrete_open_problem, 
+        initial_guess.copy(),
+        t_steps=t_steps
+    )
+    print_solution_info("Simulated Gradient Descent", solution_simulated, discrete_open_problem)
+
+
+if __name__ == "__main__":
+    main()

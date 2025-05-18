@@ -1,4 +1,0 @@
-include README.md
-include LICENSE
-recursive-include algebraic_optimization_py *.py
-recursive-include examples *.py

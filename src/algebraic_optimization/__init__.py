@@ -16,27 +16,24 @@ This package provides tools for algebraic optimization, including:
 __version__ = "0.1.0"
 __author__ = "Algebraic Optimization Team"
 
-# Import key components to make them easily accessible
-from .compositional_programming import *
+# Import key components from the subpackage to make them available at the top level
+# e.g., algebraic_optimization.Open, algebraic_optimization.OptimizerPy
+from .compositional_programming import (
+    FinSetAlgebra,
+    Open,
+    OptimizerPy,
+    euler_method,
+    simulate
+)
 
 # Define what gets imported with 'from algebraic_optimization import *'
-__all__ = [
-    "compositional_programming",
-    "__version__",
-    "__author__",
-]
-
-from .compositional_programming.optimizers import solve, solve_scipy
-from .compositional_programming.finset_algebras import FinSetAlgebra
-from .compositional_programming.objectives import PrimalObjective, MinObj
-from .compositional_programming.open_flow_graphs import Open
-
+# and what is generally considered the public API of the package.
 __all__ = [
     'FinSetAlgebra',
-    'PrimalObjective',
-    'MinObj',
     'Open',
-    'solve',
-    'solve_scipy',
+    'OptimizerPy',
+    'euler_method',
+    'simulate',
     '__version__',
+    '__author__',
 ]
