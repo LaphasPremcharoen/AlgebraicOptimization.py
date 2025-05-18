@@ -293,16 +293,3 @@ class PrimalObjective:
         -   Uses `scipy.optimize.minimize` with the 'BFGS' method.
 
 This provides a way to construct more complex cost functions from simpler ones by specifying how their variables are related or combined.
-
-## Future Extensions
-
-This module can be extended to include:
-
--   More sophisticated composition algebras.
--   Support for different types of optimization problems (e.g., constrained optimization, stochastic optimization).
--   Integration with automatic differentiation libraries for complex dynamics and objectives.
--   Visualization tools for composed systems.
-
----
-
-This concludes the primary documentation for the `compositional_programming` module. Further details or examples can be added as needed.
