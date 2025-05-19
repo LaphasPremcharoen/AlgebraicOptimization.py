@@ -1,5 +1,9 @@
 # Algebraic Optimization for Python
 
+A Python implementation of the algebraic optimization framework described in the paper 
+"A Compositional Framework for First-Order Optimization" (2403.05711). This package provides tools for 
+building and solving optimization problems using compositional programming techniques.
+
 ## Example Usage
 
 This example shows how to define, compose, and simulate optimization problems:
